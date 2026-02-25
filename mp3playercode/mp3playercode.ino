@@ -45,17 +45,16 @@ http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
 #include "SerialMP3Player.h"
 
-#define TX 11
-#define RX 10
+#define TX 3
+#define RX 2
 
 SerialMP3Player mp3(RX,TX);
 
 
 void setup() {
   mp3.showDebug(1);       // print what we are sending to the mp3 board.
-
   Serial.begin(9600);     // start serial interface
-  mp3.begin(9600);        // start mp3-communication
+  mp3.begin(9600);;       // start mp3-communication
   delay(500);             // wait for init
 
   mp3.sendCommand(CMD_SEL_DEV, 0, 2);   //select sd-card
