@@ -61,7 +61,7 @@ void setup() {
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0, 0);
-  lcd.print("Hello");
+  lcd.print("bye");
   lcd.setCursor(0, 1);
   lcd.print("William");
 }
