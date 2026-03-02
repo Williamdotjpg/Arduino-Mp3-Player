@@ -5,7 +5,7 @@ resources: https://www.oceanlabz.in/getting-started-with-serial-mp3-player/
 https://forum.arduino.cc/t/using-serialmp3player-library-with-yx5300-mp3-player-and-arduino-mega/1194648
 http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
-
+https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
 
 
 */
