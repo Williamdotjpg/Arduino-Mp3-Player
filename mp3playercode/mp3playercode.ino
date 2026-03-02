@@ -1,5 +1,5 @@
 /*
-Developers: Will Holmes, Cyle Krohling
+Developers: Will Holmes, Cyle Krohling, and Kiera McKimmy
 
 resources: https://www.oceanlabz.in/getting-started-with-serial-mp3-player/
 https://forum.arduino.cc/t/using-serialmp3player-library-with-yx5300-mp3-player-and-arduino-mega/1194648
