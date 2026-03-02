@@ -7,7 +7,7 @@ http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
 LCD Troubleshooting Code:https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
 B10K: https://chatgpt.com/share/69a5e2ae-5de0-8002-92cb-9df7dc2da5c6
-
+AutoPlay: https://chatgpt.com/share/69a5e2ae-5de0-8002-92cb-9df7dc2da5c6
 */
 
 
