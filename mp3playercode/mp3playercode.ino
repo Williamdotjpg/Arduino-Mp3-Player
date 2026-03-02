@@ -5,7 +5,7 @@ resources: https://www.oceanlabz.in/getting-started-with-serial-mp3-player/
 https://forum.arduino.cc/t/using-serialmp3player-library-with-yx5300-mp3-player-and-arduino-mega/1194648
 http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
-LCD Troubleshooting Code: https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
+LCD Troubleshooting Code:https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
 
 
 */
@@ -98,13 +98,14 @@ void loop() {
     String answer = mp3.decodeMP3Answer();
     Serial.println(answer);
 
-    int track = answer.toInt();  // extract number
+  if (answer.indexOf("Playing:") >= 0) {
 
-    if (track > 0) {
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Track: ");
-      lcd.print(track);
+  int track = answer.substring(answer.lastIndexOf(" ") + 1).toInt();
+
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Track: ");
+    lcd.print(track);
     }
   }
 }
