@@ -5,7 +5,7 @@ resources: https://www.oceanlabz.in/getting-started-with-serial-mp3-player/
 https://forum.arduino.cc/t/using-serialmp3player-library-with-yx5300-mp3-player-and-arduino-mega/1194648
 http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
-https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
+LCD Troubleshooting Code: https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
 
 
 */
@@ -57,7 +57,11 @@ char c;
 char cmd=' ';
 char cmd1=' ';
 
+void menu(char op, int nval);
+void decode_c();
+
 void setup() {
+
   Serial.begin(9600);
   mp3.begin(9600);
   delay(500);
@@ -75,25 +79,31 @@ void setup() {
 
 void loop() {
 
-  // Serial menu control
+  static unsigned long lastQuery = 0;
+
+  // Query current track every 2 seconds
+  if (millis() - lastQuery > 2000) {
+    mp3.qPlaying();
+    lastQuery = millis();
+  }
+
+  // Serial input
   if (Serial.available()){
     c = Serial.read();
     decode_c();
   }
 
-  // Check for MP3 answers
+  // MP3 response
   if (mp3.available()){
     String answer = mp3.decodeMP3Answer();
     Serial.println(answer);
 
-    // If response contains track number, extract it
-    if (answer.indexOf("Playing") >= 0) {
-      int track = answer.substring(answer.lastIndexOf(" ")+1).toInt();
+    int track = answer.toInt();  // extract number
 
+    if (track > 0) {
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("Track:");
-      lcd.setCursor(7,0);
+      lcd.print("Track: ");
       lcd.print(track);
     }
   }
@@ -114,10 +124,7 @@ void menu(char op, int nval){
     case '+': mp3.volUp(); break;
     case '-': mp3.volDown(); break;
     case 'v': mp3.setVol(nval); break;
-
-    case 'c':
-      mp3.qPlaying();   // ask current track
-      break;
+    case 'c': mp3.qPlaying(); break;
   }
 }
 
