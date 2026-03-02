@@ -59,9 +59,9 @@ char cmd=' ';
 char cmd1=' ';
 
 int lastVolume = -1;       // Track last volume
-int lastTrack = -1;        // Track last track for auto-play
+int lastTrack = 2;        // Track last track for auto-play
 bool autoPlayMode = false; // Auto-play enabled after first Pxx
-int totalTracks = 99;      // Set to the number of tracks on your SD card
+int totalTracks = 2;      // Set to the number of tracks on your SD card
 
 void menu(char op, int nval);
 void decode_c();
