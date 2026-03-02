@@ -43,12 +43,13 @@ B10K: https://chatgpt.com/share/69a5e2ae-5de0-8002-92cb-9df7dc2da5c6
   by Salvador Rueda
  *******************************************************************************/
 
-#include "SerialMP3Player.h"
+#include "SerialMP3Player.h" 
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
 #define TX 3
 #define RX 2
+#define POT A0   // Potentiometer pin
 
 SerialMP3Player mp3(RX, TX);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -56,6 +57,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 char c;
 char cmd=' ';
 char cmd1=' ';
+
+int lastVolume = -1;   // Track last volume
 
 void menu(char op, int nval);
 void decode_c();
@@ -81,7 +84,25 @@ void loop() {
 
   static unsigned long lastQuery = 0;
 
+  // -------------------------
+  // Potentiometer Volume Control
+  // -------------------------
+  int potValue = analogRead(POT);
+  int volume = map(potValue, 0, 1023, 0, 30);  // MP3 volume range (0-30)
+
+  if (volume != lastVolume) {
+    mp3.setVol(volume);
+    lastVolume = volume;
+
+    lcd.setCursor(0,1);
+    lcd.print("Vol: ");
+    lcd.print(volume);
+    lcd.print("   ");
+  }
+
+  // -------------------------
   // Query current track every 2 seconds
+  // -------------------------
   if (millis() - lastQuery > 2000) {
     mp3.qPlaying();
     lastQuery = millis();
@@ -98,14 +119,19 @@ void loop() {
     String answer = mp3.decodeMP3Answer();
     Serial.println(answer);
 
-  if (answer.indexOf("Playing:") >= 0) {
+    if (answer.indexOf("Playing:") >= 0) {
 
-  int track = answer.substring(answer.lastIndexOf(" ") + 1).toInt();
+      int track = answer.substring(answer.lastIndexOf(" ") + 1).toInt();
 
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Track: ");
-    lcd.print(track);
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Track: ");
+      lcd.print(track);
+
+      // Reprint volume after clear
+      lcd.setCursor(0,1);
+      lcd.print("Vol: ");
+      lcd.print(lastVolume);
     }
   }
 }
