@@ -58,7 +58,10 @@ char c;
 char cmd=' ';
 char cmd1=' ';
 
-int lastVolume = -1;   // Track last volume
+int lastVolume = -1;       // Track last volume
+int lastTrack = -1;        // Track last track for auto-play
+bool autoPlayMode = false; // Auto-play enabled after first Pxx
+int totalTracks = 99;      // Set to the number of tracks on your SD card
 
 void menu(char op, int nval);
 void decode_c();
@@ -132,6 +135,21 @@ void loop() {
       lcd.setCursor(0,1);
       lcd.print("Vol: ");
       lcd.print(lastVolume);
+
+      // -------------------------
+      // Auto-play next track
+      // -------------------------
+      if (autoPlayMode) {
+        if (lastTrack != -1 && track != lastTrack) {
+          if (track < totalTracks) {
+            mp3.playNext();
+          } else {
+            autoPlayMode = false; // Stop after last track
+          }
+        }
+      }
+
+      lastTrack = track;
     }
   }
 }
@@ -140,7 +158,10 @@ void menu(char op, int nval){
 
   switch (op){
 
-    case 'P': mp3.play(nval); break;
+    case 'P':
+      mp3.play(nval);
+      autoPlayMode = true;  // Enable auto-play after first play command
+      break;
     case 'F': mp3.playF(nval); break;
     case 'S': mp3.playSL(nval); break;
     case 'p': mp3.play(); break;
