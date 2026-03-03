@@ -144,7 +144,7 @@ void loop() {
           if (track < totalTracks) {
             mp3.playNext();
           } else {
-            autoPlayMode = false; // Stop after last track
+            autoPlayMode = true; // Stop after last track
           }
         }
       }
