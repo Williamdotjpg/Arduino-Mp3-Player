@@ -53,11 +53,9 @@ Buttons: https://claude.ai/share/514c4088-8de8-4913-9fd6-031d9d5ecccd
 #define POT A0
 
 // --- Button pins ---
-#define BTN_PLAY_PAUSE  4
-#define BTN_NEXT        5
-#define BTN_PREV        6
-#define BTN_VOL_UP      7
-#define BTN_VOL_DOWN    8
+#define BTN_NEXT       11
+#define BTN_PREV       9
+#define BTN_PLAYPAUSE  10
 
 SerialMP3Player mp3(RX, TX);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -79,20 +77,14 @@ void setup() {
   mp3.sendCommand(CMD_SEL_DEV, 0, 2);
   delay(500);
 
-  // Set button pins as input with internal pull-up resistors
-  // When using INPUT_PULLUP: button reads LOW when pressed, HIGH when released
-  pinMode(BTN_PLAY_PAUSE, INPUT_PULLUP);
-  pinMode(BTN_NEXT,       INPUT_PULLUP);
-  pinMode(BTN_PREV,       INPUT_PULLUP);
-  pinMode(BTN_VOL_UP,     INPUT_PULLUP);
-  pinMode(BTN_VOL_DOWN,   INPUT_PULLUP);
+  pinMode(BTN_NEXT,      INPUT_PULLUP);
+  pinMode(BTN_PREV,      INPUT_PULLUP);
+  pinMode(BTN_PLAYPAUSE, INPUT_PULLUP);
 
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0,0);
   lcd.print("MP3 Ready");
-
-  menu('?', 0);
 }
 
 void loop() {
@@ -110,22 +102,18 @@ void loop() {
     lcd.print("   ");
   }
 
-  // Query track every 2 seconds
   if (millis() - lastQuery > 2000) {
     mp3.qPlaying();
     lastQuery = millis();
   }
 
-  // Check physical buttons
-  checkButtons();  // <-- ADD THIS
+  checkButtons();
 
-  // Serial input
   if (Serial.available()) {
     c = Serial.read();
     decode_c();
   }
 
-  // MP3 response
   if (mp3.available()) {
     String answer = mp3.decodeMP3Answer();
     Serial.println(answer);
@@ -143,35 +131,95 @@ void loop() {
 }
 
 void checkButtons() {
-  // debounceDelay prevents one press from firing multiple times
-  static unsigned long lastPressTime = 0;
-  const unsigned long debounceDelay = 250; // ms — adjust if buttons feel sluggish or double-trigger
+  const unsigned long DOUBLE_CLICK_WINDOW = 400;
+  const unsigned long DEBOUNCE = 50;
 
-  if (millis() - lastPressTime < debounceDelay) return;
+  static unsigned long lastNextBounce  = 0;
+  static unsigned long lastPrevBounce  = 0;
+  static unsigned long lastPlayBounce  = 0;
+  static unsigned long lastNextPress   = 0;
+  static unsigned long lastPrevPress   = 0;
+  static bool nextPending = false;
+  static bool prevPending = false;
+  static bool isPlaying   = true;
 
-  if (digitalRead(BTN_PLAY_PAUSE) == LOW) {
-    menu('p', 0);  // play/pause toggle — change to 'a' if you want pause-only
-    lastPressTime = millis();
+  unsigned long now = millis();
+
+  // --- NEXT button ---
+  if (digitalRead(BTN_NEXT) == LOW && now - lastNextBounce > DEBOUNCE) {
+    lastNextBounce = now;
+
+    if (nextPending && (now - lastNextPress < DOUBLE_CLICK_WINDOW)) {
+      // Double click → skip to next track
+      mp3.playNext();
+      nextPending = false;
+      isPlaying = true;
+      lcd.setCursor(0,0);
+      lcd.print(">> Next Track   ");
+    } else {
+      // First click — wait to see if double click follows
+      nextPending = true;
+      lastNextPress = now;
+    }
+
+    while (digitalRead(BTN_NEXT) == LOW);
   }
-  else if (digitalRead(BTN_NEXT) == LOW) {
-    menu('>', 0);
-    lastPressTime = millis();
+
+  // Single click timeout → forward ~10 seconds
+  if (nextPending && (now - lastNextPress > DOUBLE_CLICK_WINDOW)) {
+    mp3.sendCommand(0x1C, 0, 0);
+    nextPending = false;
+    lcd.setCursor(0,0);
+    lcd.print("+10s            ");
   }
-  else if (digitalRead(BTN_PREV) == LOW) {
-    menu('<', 0);
-    lastPressTime = millis();
+
+  // --- PREV button ---
+  if (digitalRead(BTN_PREV) == LOW && now - lastPrevBounce > DEBOUNCE) {
+    lastPrevBounce = now;
+
+    if (prevPending && (now - lastPrevPress < DOUBLE_CLICK_WINDOW)) {
+      // Double click → go to previous track
+      mp3.playPrevious();
+      prevPending = false;
+      isPlaying = true;
+      lcd.setCursor(0,0);
+      lcd.print("<< Prev Track   ");
+    } else {
+      prevPending = true;
+      lastPrevPress = now;
+    }
+
+    while (digitalRead(BTN_PREV) == LOW);
   }
-  else if (digitalRead(BTN_VOL_UP) == LOW) {
-    menu('+', 0);
-    lastPressTime = millis();
+
+  // Single click timeout → rewind ~10 seconds
+  if (prevPending && (now - lastPrevPress > DOUBLE_CLICK_WINDOW)) {
+    mp3.sendCommand(0x1B, 0, 0);
+    prevPending = false;
+    lcd.setCursor(0,0);
+    lcd.print("-10s            ");
   }
-  else if (digitalRead(BTN_VOL_DOWN) == LOW) {
-    menu('-', 0);
-    lastPressTime = millis();
+
+  // --- PLAY/PAUSE button ---
+  if (digitalRead(BTN_PLAYPAUSE) == LOW && now - lastPlayBounce > DEBOUNCE) {
+    lastPlayBounce = now;
+
+    if (isPlaying) {
+      mp3.pause();
+      isPlaying = false;
+      lcd.setCursor(0,0);
+      lcd.print("Paused          ");
+    } else {
+      mp3.play();
+      isPlaying = true;
+      lcd.setCursor(0,0);
+      lcd.print("Playing         ");
+    }
+
+    while (digitalRead(BTN_PLAYPAUSE) == LOW);
   }
 }
 
-// --- rest of your code unchanged ---
 void menu(char op, int nval){
   switch (op){
     case 'P': mp3.play(nval); break;
