@@ -52,10 +52,9 @@ https://docs.arduino.cc/built-in-examples/digital/Button/
 #define RX 2
 #define POT A0
 
-// --- Button pins ---
 #define BTN_NEXT       A1
-#define BTN_PREV       A3
 #define BTN_PLAYPAUSE  A2
+#define BTN_PREV       A3
 
 SerialMP3Player mp3(RX, TX);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -88,7 +87,6 @@ void setup() {
 }
 
 void loop() {
-  static unsigned long lastQuery = 0;
 
   // Potentiometer volume
   int potValue = analogRead(POT);
@@ -100,11 +98,6 @@ void loop() {
     lcd.print("Vol: ");
     lcd.print(volume);
     lcd.print("   ");
-  }
-
-  if (millis() - lastQuery > 2000) {
-    mp3.qPlaying();
-    lastQuery = millis();
   }
 
   checkButtons();
@@ -119,86 +112,62 @@ void loop() {
     Serial.println(answer);
     if (answer.indexOf("Playing:") >= 0) {
       int track = answer.substring(answer.lastIndexOf(" ") + 1).toInt();
-      lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("Track: ");
       lcd.print(track);
+      lcd.print("   ");
       lcd.setCursor(0,1);
       lcd.print("Vol: ");
       lcd.print(lastVolume);
+      lcd.print("   ");
     }
   }
 }
 
 void checkButtons() {
-  const unsigned long DOUBLE_CLICK_WINDOW = 400;
-  const unsigned long DEBOUNCE = 50;
+  const unsigned long COOLDOWN = 30;
+  const unsigned long MSG_DURATION = 1000;
 
-  static unsigned long lastNextBounce  = 0;
-  static unsigned long lastPrevBounce  = 0;
-  static unsigned long lastPlayBounce  = 0;
-  static unsigned long lastNextPress   = 0;
-  static unsigned long lastPrevPress   = 0;
-  static bool nextPending = false;
-  static bool prevPending = false;
-  static bool isPlaying   = true;
+  static unsigned long lastNextPress  = 0;
+  static unsigned long lastPrevPress  = 0;
+  static unsigned long lastPlayPress  = 0;
+  static unsigned long msgShownAt     = 0;
+  static bool msgActive = false;
+  static bool isPlaying = true;
 
   unsigned long now = millis();
 
-  // --- NEXT button ---
-  if (digitalRead(BTN_NEXT) == LOW && now - lastNextBounce > DEBOUNCE) {
-    lastNextBounce = now;
-
-    if (nextPending && (now - lastNextPress < DOUBLE_CLICK_WINDOW)) {
-      mp3.playNext();
-      nextPending = false;
-      isPlaying = true;
-      lcd.setCursor(0,0);
-      lcd.print(">> Next Track   ");
-    } else {
-      nextPending = true;
-      lastNextPress = now;
-    }
-
-    while (digitalRead(BTN_NEXT) == LOW);
+  // Once message has shown long enough, query track to refresh LCD
+  if (msgActive && now - msgShownAt > MSG_DURATION) {
+    msgActive = false;
+    mp3.qPlaying();
   }
 
-  if (nextPending && (now - lastNextPress > DOUBLE_CLICK_WINDOW)) {
-    mp3.sendCommand(0x1C, 0, 0);
-    nextPending = false;
+  // --- NEXT button ---
+  if (digitalRead(BTN_NEXT) == LOW && now - lastNextPress > COOLDOWN) {
+    lastNextPress = now;
+    mp3.playNext();
+    isPlaying = true;
     lcd.setCursor(0,0);
-    lcd.print("+10s            ");
+    lcd.print(">> Next Track   ");
+    msgActive = true;
+    msgShownAt = now;
   }
 
   // --- PREV button ---
-  if (digitalRead(BTN_PREV) == LOW && now - lastPrevBounce > DEBOUNCE) {
-    lastPrevBounce = now;
-
-    if (prevPending && (now - lastPrevPress < DOUBLE_CLICK_WINDOW)) {
-      mp3.playPrevious();
-      prevPending = false;
-      isPlaying = true;
-      lcd.setCursor(0,0);
-      lcd.print("<< Prev Track   ");
-    } else {
-      prevPending = true;
-      lastPrevPress = now;
-    }
-
-    while (digitalRead(BTN_PREV) == LOW);
-  }
-
-  if (prevPending && (now - lastPrevPress > DOUBLE_CLICK_WINDOW)) {
-    mp3.sendCommand(0x1B, 0, 0);
-    prevPending = false;
+  if (digitalRead(BTN_PREV) == LOW && now - lastPrevPress > COOLDOWN) {
+    lastPrevPress = now;
+    mp3.playPrevious();
+    isPlaying = true;
     lcd.setCursor(0,0);
-    lcd.print("-10s            ");
+    lcd.print("<< Prev Track   ");
+    msgActive = true;
+    msgShownAt = now;
   }
 
   // --- PLAY/PAUSE button ---
-  if (digitalRead(BTN_PLAYPAUSE) == LOW && now - lastPlayBounce > DEBOUNCE) {
-    lastPlayBounce = now;
-
+  if (digitalRead(BTN_PLAYPAUSE) == LOW && now - lastPlayPress > COOLDOWN) {
+    lastPlayPress = now;
     if (isPlaying) {
       mp3.pause();
       isPlaying = false;
@@ -209,9 +178,9 @@ void checkButtons() {
       isPlaying = true;
       lcd.setCursor(0,0);
       lcd.print("Playing         ");
+      msgActive = true;
+      msgShownAt = now;
     }
-
-    while (digitalRead(BTN_PLAYPAUSE) == LOW);
   }
 }
 
