@@ -1,12 +1,14 @@
 /*
-Developers: Will Holmes, Cyle Krohling
+Developers: Will Holmes, Cyle Krohling, and Kiera McKimmy
 
 resources: https://www.oceanlabz.in/getting-started-with-serial-mp3-player/
 https://forum.arduino.cc/t/using-serialmp3player-library-with-yx5300-mp3-player-and-arduino-mega/1194648
 http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
-
-
+LCD Troubleshooting Code:https://chatgpt.com/share/69a5dca7-a304-8002-a3b0-b455103b4850
+B10K: https://chatgpt.com/share/69a5e2ae-5de0-8002-92cb-9df7dc2da5c6
+Buttons: https://claude.ai/share/514c4088-8de8-4913-9fd6-031d9d5ecccd
+https://docs.arduino.cc/built-in-examples/digital/Button/ 
 
 */
 
@@ -42,194 +44,177 @@ http://github.com/salvadorrueda/SerialMP3Player/tree/master
 
   by Salvador Rueda
  *******************************************************************************/
-
-#include "SerialMP3Player.h"
+#include "SerialMP3Player.h" 
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 #define TX 3
 #define RX 2
+#define POT A0
 
-SerialMP3Player mp3(RX,TX);
+#define BTN_NEXT       A1
+#define BTN_PLAYPAUSE  A2
+#define BTN_PREV       A3
 
+SerialMP3Player mp3(RX, TX);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+char c;
+char cmd=' ';
+char cmd1=' ';
+int lastVolume = -1;
+
+void menu(char op, int nval);
+void decode_c();
+void checkButtons();
 
 void setup() {
-  mp3.showDebug(1);       // print what we are sending to the mp3 board.
-  Serial.begin(9600);     // start serial interface
-  mp3.begin(9600);;       // start mp3-communication
-  delay(500);             // wait for init
+  Serial.begin(9600);
+  mp3.begin(9600);
+  delay(500);
 
-  mp3.sendCommand(CMD_SEL_DEV, 0, 2);   //select sd-card
-  delay(500);             // wait for init
+  mp3.sendCommand(CMD_SEL_DEV, 0, 2);
+  delay(500);
 
-  menu('?',0); // print the menu options.
+  pinMode(BTN_NEXT,      INPUT_PULLUP);
+  pinMode(BTN_PREV,      INPUT_PULLUP);
+  pinMode(BTN_PLAYPAUSE, INPUT_PULLUP);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("MP3 Ready");
 }
 
- char c;  // char from Serial
- char cmd=' ';
- char cmd1=' ';
-
-
-// the loop function runs over and over again forever
 void loop() {
 
-  if (Serial.available()){
-    c = Serial.read();
-    decode_c(); // Decode c.
+  // Potentiometer volume
+  int potValue = analogRead(POT);
+  int volume = map(potValue, 0, 1023, 0, 30);
+  if (volume != lastVolume) {
+    mp3.setVol(volume);
+    lastVolume = volume;
+    lcd.setCursor(0,1);
+    lcd.print("Vol: ");
+    lcd.print(volume);
+    lcd.print("   ");
   }
-  // Check for the answer.
-  if (mp3.available()){
-    Serial.println(mp3.decodeMP3Answer()); // print decoded answers from mp3
+
+  checkButtons();
+
+  if (Serial.available()) {
+    c = Serial.read();
+    decode_c();
+  }
+
+  if (mp3.available()) {
+    String answer = mp3.decodeMP3Answer();
+    Serial.println(answer);
+    if (answer.indexOf("Playing:") >= 0) {
+      int track = answer.substring(answer.lastIndexOf(" ") + 1).toInt();
+      lcd.setCursor(0,0);
+      lcd.print("Track: ");
+      lcd.print(track);
+      lcd.print("   ");
+      lcd.setCursor(0,1);
+      lcd.print("Vol: ");
+      lcd.print(lastVolume);
+      lcd.print("   ");
+    }
+  }
+}
+
+void checkButtons() {
+  const unsigned long COOLDOWN = 30;
+  const unsigned long MSG_DURATION = 1000;
+
+  static unsigned long lastNextPress  = 0;
+  static unsigned long lastPrevPress  = 0;
+  static unsigned long lastPlayPress  = 0;
+  static unsigned long msgShownAt     = 0;
+  static bool msgActive = false;
+  static bool isPlaying = true;
+
+  unsigned long now = millis();
+
+  // Once message has shown long enough, query track to refresh LCD
+  if (msgActive && now - msgShownAt > MSG_DURATION) {
+    msgActive = false;
+    mp3.qPlaying();
+  }
+
+  // --- NEXT button ---
+  if (digitalRead(BTN_NEXT) == LOW && now - lastNextPress > COOLDOWN) {
+    lastNextPress = now;
+    mp3.playNext();
+    isPlaying = true;
+    lcd.setCursor(0,0);
+    lcd.print(">> Next Track   ");
+    msgActive = true;
+    msgShownAt = now;
+  }
+
+  // --- PREV button ---
+  if (digitalRead(BTN_PREV) == LOW && now - lastPrevPress > COOLDOWN) {
+    lastPrevPress = now;
+    mp3.playPrevious();
+    isPlaying = true;
+    lcd.setCursor(0,0);
+    lcd.print("<< Prev Track   ");
+    msgActive = true;
+    msgShownAt = now;
+  }
+
+  // --- PLAY/PAUSE button ---
+  if (digitalRead(BTN_PLAYPAUSE) == LOW && now - lastPlayPress > COOLDOWN) {
+    lastPlayPress = now;
+    if (isPlaying) {
+      mp3.pause();
+      isPlaying = false;
+      lcd.setCursor(0,0);
+      lcd.print("Paused          ");
+    } else {
+      mp3.play();
+      isPlaying = true;
+      lcd.setCursor(0,0);
+      lcd.print("Playing         ");
+      msgActive = true;
+      msgShownAt = now;
+    }
   }
 }
 
 void menu(char op, int nval){
-  // Menu
   switch (op){
-    case '?':
-    case 'h':
-        Serial.println("SerialMP3Player Basic Commands:");
-        Serial.println(" ? - Display Menu options. ");
-        Serial.println(" P01 - Play 01 file");
-        Serial.println(" F01 - Play 01 folder");
-        Serial.println(" S01 - Play 01 file in loop");
-        Serial.println(" V01 - Play 01 file, volume 30");
-        Serial.println(" p - Play");
-        Serial.println(" a - pause");
-        Serial.println(" s - stop ");
-        Serial.println(" > - Next");
-        Serial.println(" < - Previous");
-        Serial.println(" + - Volume UP");
-        Serial.println(" - - Volume DOWN");
-        Serial.println(" v15 - Set Volume to 15");
-        Serial.println(" c - Query current file");
-        Serial.println(" q - Query status");
-        Serial.println(" x - Query folder count");
-        Serial.println(" t - Query total file count");
-        Serial.println(" r - Reset");
-        Serial.println(" e - Sleep");
-        Serial.println(" w - Wake up");
-        break;
-
-    case 'P':
-        Serial.println("Play");
-        mp3.play(nval);
-        break;
-
-    case 'F':
-        Serial.println("Play Folder");
-        mp3.playF(nval);
-        break;
-
-    case 'S':
-        Serial.println("Play loop");
-        mp3.playSL(nval);
-        break;
-
-    case 'V':
-        Serial.println("Play file at 30 volume");
-        mp3.play(nval,30);
-        break;
-
-
-    case 'p':
-        Serial.println("Play");
-        mp3.play();
-        break;
-
-    case 'a':
-        Serial.println("Pause");
-        mp3.pause();
-        break;
-
-    case 's':
-        Serial.println("Stop");
-        mp3.stop();
-        break;
-
-    case '>':
-        Serial.println("Next");
-        mp3.playNext();
-        break;
-
-    case '<':
-        Serial.println("Previous");
-        mp3.playPrevious();
-        break;
-
-    case '+':
-        Serial.println("Volume UP");
-        mp3.volUp();
-        break;
-
-    case '-':
-        Serial.println("Volume Down");
-        mp3.volDown();
-        break;
-
-    case 'v':
-        Serial.println("Set to Volume");
-          mp3.setVol(nval);
-          mp3.qVol();
-        break;
-
-    case 'c':
-        Serial.println("Query current file");
-        mp3.qPlaying();
-        break;
-
-    case 'q':
-        Serial.println("Query status");
-        mp3.qStatus();
-        break;
-
-    case 'x':
-        Serial.println("Query folder count");
-        mp3.qTFolders();
-        break;
-
-    case 't':
-        Serial.println("Query total file count");
-        mp3.qTTracks();
-        break;
-
-    case 'r':
-        Serial.println("Reset");
-        mp3.reset();
-        break;
-
-    case 'e':
-        Serial.println("Sleep");
-        mp3.sleep();
-        break;
-
-    case 'w':
-        Serial.println("Wake up");
-        mp3.wakeup();
-        break;
+    case 'P': mp3.play(nval); break;
+    case 'F': mp3.playF(nval); break;
+    case 'S': mp3.playSL(nval); break;
+    case 'p': mp3.play(); break;
+    case 'a': mp3.pause(); break;
+    case 's': mp3.stop(); break;
+    case '>': mp3.playNext(); break;
+    case '<': mp3.playPrevious(); break;
+    case '+': mp3.volUp(); break;
+    case '-': mp3.volDown(); break;
+    case 'v': mp3.setVol(nval); break;
+    case 'c': mp3.qPlaying(); break;
   }
 }
 
 void decode_c(){
-  // Decode c looking for a specific command or a digit
-
-  // if c is a 'v', 'P', 'F', 'S' or 'V' wait for the number XX
-  if (c=='v' || c=='P' || c=='F' || c=='S' || c=='V'){
+  if (c=='v' || c=='P' || c=='F' || c=='S'){
     cmd=c;
-  }else{
-    // maybe c is part of XX number
-    if(c>='0' && c<='9'){
-      // if c is a digit
-      if(cmd1==' '){
-        // if cmd1 is empty then c is the first digit
-        cmd1 = c;
-      }else{
-        // if cmd1 is not empty c is the second digit
-        menu(cmd, ((cmd1-'0')*10)+(c-'0'));
-        cmd = ' ';
-        cmd1 = ' ';
-      }
+  }
+  else if(c>='0' && c<='9'){
+    if(cmd1==' '){
+      cmd1 = c;
     }else{
-      // c is not a digit nor 'v', 'P', 'F' or 'S' so just call menu(c, nval);
-      menu(c, 0);
+      menu(cmd, ((cmd1-'0')*10)+(c-'0'));
+      cmd = ' ';
+      cmd1 = ' ';
     }
+  }
+  else{
+    menu(c,0);
   }
 }
