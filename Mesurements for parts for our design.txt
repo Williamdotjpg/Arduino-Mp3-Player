@@ -1,0 +1,10 @@
+Breadboard measurements: L: 3 4/16
+2 2/16
+
+Arduino 3in length
+2 2/16 width
+
+Lcd Screen: 3 2/16 length
+1 1/2 
+screen: length 2 14/16
+width 1in
